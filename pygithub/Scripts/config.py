@@ -1,5 +1,5 @@
 
-ACCESS_TOKEN = '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'
+ACCESS_TOKEN = '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l'
 
 def get_access_token():
-    return "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"
+    return "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"

@@ -12,77 +12,110 @@ import requests
 
 
 from github import Github
-#import github
-#import time
-
-"""
-def findPullBylabel(repo = None, labelName = 'hacktoberfest'):
-    if(labelName is None or repo is None):
-        raise DemoException("Error in Parameters")
-    #---------------------------------------
-    labels = repo.get_labels()
-    pulls = repo.get_pulls(state = 'close')#, sort='created', base='master')
-    lista = []
-    for label in labels:
-        if labelName in label.name:
-            #lista.append(label)
-            print("Label: ", label.name)
-            for pr in pulls:
-                #time.sleep(0.1)
-                for labelx in pr.labels:
-                    #print(pr.number)
-                    if label.name in labelx.name:
-                        print("\tpull number: ", pr.number)
-                        lista.append(pr)
-    return lista
-"""
-
-"""
-def get_issue_By_Label(repo,nome):
-
-        #curl 'https://api.github.com/repos/travis-ci/travis-ci/issues?labels=bug;state=closed'
-
-        #api.github.com/repos/{owner}/{repo}/issues?labels=hacktoberfest-accepted?state=closed
-        #print(repo._requester)
-        #url = f"{repo.url}/issues?labels={nome};state=closed"
-        url = f"/issues?labels={nome};state=closed"
-        #print(url)
-        return github.PaginatedList.PaginatedList(
-            github.Issue.Issue, repo._requester, url, None
-        )
-"""
-
 access_token = config.get_access_token()
-g = Github(access_token, per_page=300)
-print(g.rate_limiting)
+df_issues = pd.DataFrame()
+while True:
+    try:
+        g = Github(access_token, retry=10, timeout=15, per_page=300)
+        print(g.rate_limiting)
+        topic = 'hacktoberfest'
+        labelName = ["hacktoberfest"]
+        repos = g.search_repositories(query=f'topic:{topic}')
+        for repo in repos:
+            try:
+                repoName = repo.name
+                print(repoName)
+                issues = repo.get_issues(state='closed', sort='created',labels=labelName)
+                for issue in issues:
+                    print(issue)
+                    issue_comments = []
+                    for comment in issue.get_comments():
+                        cmt = {
+                            'user': comment.user.name,
+                            'user_id': comment.user.id,
+                            'user_site_admin': comment.user.site_admin,
+                            'body': comment.body
+                        }
+                        issue_comments.append(cmt)
+                        print(issue.id)
+                        print(issue.pull_request)
 
-topic = 'hacktoberfest'
-labelName = "hacktoberfest"
+                    df_issues = df_issues.append({
+                        'issue_id': issue.id,
+                        'issue_number': issue.number, # issue features
+                        'issue_labels': [l.name for l in issue.labels],
+                        'issue_title': issue.title,
+                        'issue_body': issue.body,
+                        'owner': issue.user.name if issue.user is not None else '', # Issue owner features
+                        'owner_username': issue.user.login if issue.user is not None else '',
+                        'followers': issue.user.followers,
+                        'followings': issue.user.following,
+                        'contributions': issue.user.contributions,
+                        'stars': issue.user.get_starred().totalCount,
+                        'issue_date': issue.created_at,
+                        'issue_comments': issue_comments,
+                        'issueORPR': issue.pull_request
+                    }, ignore_index=True)
+                    df_issues.to_csv('../Dataset/open_issues.csv', sep=',', encoding='utf-8', index=True)   
 
-repos = g.search_repositories(query=f'topic:{topic}')
-for repo in repos:
-    print(repo.name)
 
-    labels = repo.get_labels()
 
-    for lab in labels:
-        #print("\t",lab.name)
-        if labelName in lab.name:
-            #https://pygithub.readthedocs.io/en/latest/github_objects/Repository.html#github.Repository.Repository.get_issues
-            issues = repo.get_issues(state='all', labels = [lab])
-            for issue in issues: #https://pygithub.readthedocs.io/en/latest/github_objects/Issue.html#github.Issue.Issue
-                if issue is None:
+            
+            except RateLimitExceededException as e:
+                    print(e.status)
+                    print('Rate limit exceeded')
+                    time.sleep(300)
                     continue
-                try:
-                    pull = issue.as_pull_request() #https://pygithub.readthedocs.io/en/latest/github_objects/PullRequest.html#github.PullRequest.PullRequest
-                except:
-                    print("An exception occurred")
+            except BadCredentialsException as e:
+                    print(e.status)
+                    print('Bad credentials exception')
+                    break
+            except UnknownObjectException as e:
+                    print(e.status)
+                    print('Unknown object exception')
+                    break
+            except GithubException as e:
+                    print(e.status)
+                    print('General exception')
+                    break
+            except requests.exceptions.ConnectionError as e:
+                    print('Retries limit exceeded')
+                    print(str(e))
+                    time.sleep(10)
                     continue
-                if pull is None:
+            except requests.exceptions.Timeout as e:
+                    print(str(e))
+                    print('Time out exception')
+                    time.sleep(10)
                     continue
-                commits = pull.get_commits() #https://pygithub.readthedocs.io/en/latest/github_objects/Commit.html#github.Commit.Commit
-                commitsUser = []
-                for commit in commits:
-                    if commit.author not in commitsUser:
-                        commitsUser.append(commit.author)
-                        print("\t\t",commit.author)
+
+    except RateLimitExceededException as e:
+        print(e.status)
+        print('Rate limit exceeded')
+        time.sleep(300)
+        continue
+    except BadCredentialsException as e:
+        print(e.status)
+        print('Bad credentials exception')
+        break
+    except UnknownObjectException as e:
+        print(e.status)
+        print('Unknown object exception')
+        break
+    except GithubException as e:
+        print(e.status)
+        print('General exception')
+        break
+    except requests.exceptions.ConnectionError as e:
+        print('Retries limit exceeded')
+        print(str(e))
+        time.sleep(10)
+        continue
+    except requests.exceptions.Timeout as e:
+        print(str(e))
+        print('Time out exception')
+        time.sleep(10)
+        continue
+    break
+    
+
